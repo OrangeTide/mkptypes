@@ -1,0 +1,463 @@
+*** mkptypes/orig/mkptypes.1	Mon Jan 21 12:16:40 1991
+--- mkptypes/mkptypes.1	Sun Feb 17 00:05:58 1991
+***************
+*** 19,24 ****
+--- 19,28 ----
+  ] [
+  .B -A
+  ] [
++ .B -V
++ ] [
++ .B -W
++ ] [
+  .I file ...
+  ]
+  .SH DESCRIPTION
+***************
+*** 41,47 ****
+  to be prepended to the prototype declaration as a comment.
+  .PP
+  The -p option controls the name of the macro used to guard prototype
+! definitions. Normally this is ``_P'', but you can change it to any string
+  you like. To eliminate the guard macro entirely, use the -A option.
+  .PP
+  The -s option causes prototypes to be generated for functions declared
+--- 45,51 ----
+  to be prepended to the prototype declaration as a comment.
+  .PP
+  The -p option controls the name of the macro used to guard prototype
+! definitions. Normally this is ``P_'', but you can change it to any string
+  you like. To eliminate the guard macro entirely, use the -A option.
+  .PP
+  The -s option causes prototypes to be generated for functions declared
+***************
+*** 63,68 ****
+--- 67,79 ----
+  The -A option causes the prototypes emitted to be only readable by ANSI
+  compilers. Normally, the prototypes are "macro-ized" so that compilers
+  with __STDC__ not defined don't see them.
++ .PP
++ The -V option prints the version number and patchlevel of mkptypes on the
++ standard error output.
++ .PP
++ The -W option supresses the default widening of types in old-style
++ declarations (e.g. char -> int); use this for C++ compilers or
++ for supposedly ANSI compilers that don't do type promotion.
+  .PP
+  If files are specified on the command line, then a comment specifying
+  the file of origin is emitted before the prototypes constructed from
+*** mkptypes/orig/mkptypes.c	Mon Mar 26 12:35:06 1990
+--- mkptypes/mkptypes.c	Sun Feb 17 00:21:50 1991
+***************
+*** 30,37 ****
+  #include <ctype.h>
+  #include <string.h>
+  
+! /*#define DEBUG(s) (fputs(s, stderr)) /* */
+! #define DEBUG(s) /* */
+  
+  #define ISCSYM(x) ((x) > 0 && (isalnum(x) || (x) == '_'))
+  #define ABORTED ( (Word *) -1 )
+--- 30,40 ----
+  #include <ctype.h>
+  #include <string.h>
+  
+! #if 0
+! #define DEBUG(s) (fputs(s, stderr))
+! #else
+! #define DEBUG(s)
+! #endif
+  
+  #define ISCSYM(x) ((x) > 0 && (isalnum(x) || (x) == '_'))
+  #define ABORTED ( (Word *) -1 )
+***************
+*** 42,53 ****
+  int donum    = 0;		/* print line numbers? */
+  int define_macro   = 1;		/* define macro for prototypes? */
+  int use_macro   = 1;		/* use a macro for prototypes? */
+! char *macro_name = "_P";	/*   macro to use for prototypes */
+  int no_parm_names = 0;		/* no parm names - only types */
+  int print_extern = 0;		/* use "extern" before function declarations */
+! #ifdef CPP
+! int call_cpp = 0;		/* preprocess files */
+! #endif
+  
+  char *ourname;			/* our name, from argv[] array */
+  int inquote = 0;		/* in a quote?? */
+--- 45,54 ----
+  int donum    = 0;		/* print line numbers? */
+  int define_macro   = 1;		/* define macro for prototypes? */
+  int use_macro   = 1;		/* use a macro for prototypes? */
+! char *macro_name = "P_";	/*   macro to use for prototypes */
+  int no_parm_names = 0;		/* no parm names - only types */
+  int print_extern = 0;		/* use "extern" before function declarations */
+! int dont_promote = 0;		/* don't promote prototypes */
+  
+  char *ourname;			/* our name, from argv[] array */
+  int inquote = 0;		/* in a quote?? */
+***************
+*** 164,169 ****
+--- 165,173 ----
+  {
+  	Word *oldw = 0;
+  
++ 	if (dont_promote)
++ 		return;
++ 
+  	while (w) {
+  		if (*w->string) {
+  			if ( (!strcmp(w->string, "char") ||
+***************
+*** 190,196 ****
+  
+  /* read a character: if it's a newline, increment the line count */
+  
+! #ifdef __GNUC__	/* ++jrb */
+  inline
+  #endif
+  int ngetc(f)
+--- 194,200 ----
+  
+  /* read a character: if it's a newline, increment the line count */
+  
+! #if defined(__GNUC__) && !defined(__NO_INLINE__)	/* ++jrb */
+  inline
+  #endif
+  int ngetc(f)
+***************
+*** 236,241 ****
+--- 240,259 ----
+  			}
+  			return fnextch(f);
+  		}
++ 		else if (c == '/') {	/* C++ style comment */
++ 			incomment = 1;
++ 			c = ' ';
++ DEBUG("fnextch: C++ comment seen\n");
++ 			while (incomment) {
++ 				lastc = c;
++ 				c = ngetc(f);
++ 				if (lastc != '\\' && c == '\n')
++ 					incomment = 0;
++ 				else if (c < 0)
++ 					return c;
++ 			}
++ 			return fnextch(f);
++ 		}
+  		else {
+  /* if we pre-fetched a linefeed, remember to adjust the line number */
+  			if (c == '\n') linenum--;
+***************
+*** 557,566 ****
+  		else if (!strcmp(buf, "{}")) break;
+  /* otherwise, throw the word into the list (except for "register") */
+  		else if (strcmp(buf, "register")) {
+- 			sawsomething = 1;
+  			addword(plist, buf);
+  			if (*buf == '(') inparen++;
+! 			if (*buf == ')') inparen--;
+  		}
+  	}
+  
+--- 575,584 ----
+  		else if (!strcmp(buf, "{}")) break;
+  /* otherwise, throw the word into the list (except for "register") */
+  		else if (strcmp(buf, "register")) {
+  			addword(plist, buf);
+  			if (*buf == '(') inparen++;
+! 			else if (*buf == ')') inparen--;
+! 			else sawsomething = 1;
+  		}
+  	}
+  
+***************
+*** 682,688 ****
+  /* try to guess when a declaration is not an external function definition */
+  		if (!strcmp(buf, ",") || !strcmp(buf, "{}") ||
+  		    !strcmp(buf, "=") || !strcmp(buf, "typedef") ||
+! 		    !strcmp(buf, "extern")) {
+  			skipit(buf, f);
+  			goto again;
+  		}
+--- 700,706 ----
+  /* try to guess when a declaration is not an external function definition */
+  		if (!strcmp(buf, ",") || !strcmp(buf, "{}") ||
+  		    !strcmp(buf, "=") || !strcmp(buf, "typedef") ||
+! 		    !strcmp(buf, "[") || !strcmp(buf, "extern")) {
+  			skipit(buf, f);
+  			goto again;
+  		}
+***************
+*** 721,738 ****
+  {
+  	FILE *f;
+  	char *t, *iobuf;
+  	extern void Usage();
+  
+! 	if (argv[0] && argv[0][0])
+  		ourname = argv[0];
+  	else
+  		ourname = "mkptypes";
+  
+  	argv++; argc--;
+  
+- 	if (argc < 0)		/* strange -- no args at all */
+- 		Usage();
+- 
+  	iobuf = malloc(NEWBUFSIZ);
+  	while (*argv && **argv == '-') {
+  		t = *argv++; --argc; t++;
+--- 739,763 ----
+  {
+  	FILE *f;
+  	char *t, *iobuf;
++ 	int exit_if_noargs = 0;
+  	extern void Usage();
+  
+! 	if (argv[0] && argv[0][0]) {
+! #ifdef unix
+! 		ourname = strrchr(argv[0], '/');
+! 		if (!ourname)
+! #endif
+! #ifdef atarist
+! 		ourname = strrchr(argv[0], '\\');
+! 		if (!ourname)
+! #endif
+  		ourname = argv[0];
++ 	}
+  	else
+  		ourname = "mkptypes";
+  
+  	argv++; argc--;
+  
+  	iobuf = malloc(NEWBUFSIZ);
+  	while (*argv && **argv == '-') {
+  		t = *argv++; --argc; t++;
+***************
+*** 758,763 ****
+--- 783,794 ----
+  				define_macro = 0;
+  			else if (*t == 'A')
+  				use_macro = 0;
++ 			else if (*t == 'V') {
++ 				exit_if_noargs = 1;
++ 				Version();
++ 			}
++ 			else if (*t == 'W')
++ 				dont_promote = 1;
+  			else
+  				Usage();
+  			t++;
+***************
+*** 764,769 ****
+--- 795,803 ----
+  		}
+  	}
+  
++ 	if (argc == 0 && exit_if_noargs)
++ 		exit(EXIT_FAILURE);
++ 
+  	if (use_macro && define_macro) {
+  		printf("#if defined(__STDC__) || defined(__cplusplus)\n");
+  		printf("# define %s(s) s\n", macro_name);
+***************
+*** 771,778 ****
+  		printf("# define %s(s) ()\n", macro_name);
+  		printf("#endif\n\n");
+  	}
+! 	if (argc == 0)
+  		getdecl(stdin);
+  	else
+  		while (argc > 0 && *argv) {
+  DEBUG("trying a new file\n");
+--- 805,814 ----
+  		printf("# define %s(s) ()\n", macro_name);
+  		printf("#endif\n\n");
+  	}
+! 
+! 	if (argc == 0) {
+  		getdecl(stdin);
++ 	}
+  	else
+  		while (argc > 0 && *argv) {
+  DEBUG("trying a new file\n");
+***************
+*** 804,814 ****
+  void Usage()
+  {
+  	fprintf(stderr, 
+! 	   "Usage: %s [-e][-n][-p sym][-s][-x][-z][-A][files ...]\n", ourname);
+  	fputs("   -e: put an explicit \"extern\" keyword in declarations\n",
+  	   stderr);
+  	fputs("   -n: put line numbers of declarations as comments\n",stderr);
+! 	fputs("   -p nm: use \"nm\" as the prototype macro (default \"_P\")\n",
+  	   stderr);
+  	fputs("   -s: include declarations for static functions\n", stderr);
+  	fputs("   -x: omit parameter names in prototypes\n", stderr);
+--- 840,850 ----
+  void Usage()
+  {
+  	fprintf(stderr, 
+! 	   "Usage: %s [-e][-n][-p sym][-s][-x][-z][-A][-W][files ...]\n", ourname);
+  	fputs("   -e: put an explicit \"extern\" keyword in declarations\n",
+  	   stderr);
+  	fputs("   -n: put line numbers of declarations as comments\n",stderr);
+! 	fputs("   -p nm: use \"nm\" as the prototype macro (default \"P_\")\n",
+  	   stderr);
+  	fputs("   -s: include declarations for static functions\n", stderr);
+  	fputs("   -x: omit parameter names in prototypes\n", stderr);
+***************
+*** 815,819 ****
+--- 851,865 ----
+  	fputs("   -z: omit prototype macro definition\n", stderr);
+  	fputs("   -A: omit prototype macro; header files are strict ANSI\n",
+  	   stderr);
++ 	fputs("   -V: print version number\n", stderr);
++ 	fputs("   -W: don't promote types in old style declarations\n", stderr);
+  	exit(EXIT_FAILURE);
++ }
++ 
++ #include "patchlev.h"
++ 
++ void
++ Version()
++ {
++ 	fprintf(stderr, "%s 1.0 patchlevel %d\n", ourname, PATCHLEVEL);
+  }
+*** mkptypes/orig/mkptypes.h	Thu Mar 22 08:14:40 1990
+--- mkptypes/mkptypes.h	Sun Feb 17 00:08:30 1991
+***************
+*** 1,29 ****
+  #if defined(__STDC__) || defined(__cplusplus)
+! # define _P(s) s
+  #else
+! # define _P(s) ()
+  #endif
+  
+  
+  /* mkptypes.c */
+! Word *word_alloc _P((char *s));
+! void word_free _P((Word *w));
+! int List_len _P((Word *w));
+! Word *word_append _P((Word *w1, Word *w2));
+! int foundin _P((Word *w1, Word *w2));
+! void addword _P((Word *w, char *s));
+! void typefixhack _P((Word *w));
+! int ngetc _P((FILE *f));
+! int fnextch _P((FILE *f));
+! int nextch _P((FILE *f));
+! int getsym _P((char *buf, FILE *f));
+! int skipit _P((char *buf, FILE *f));
+! int is_type_word _P((char *s));
+! Word *typelist _P((Word *p));
+! Word *getparamlist _P((FILE *f));
+! void emit _P((Word *wlist, Word *plist, long startline));
+! void getdecl _P((FILE *f));
+! void main _P((int argc, char **argv));
+! void Usage _P((void));
+  
+! #undef _P
+--- 1,30 ----
+  #if defined(__STDC__) || defined(__cplusplus)
+! # define P_(s) s
+  #else
+! # define P_(s) ()
+  #endif
+  
+  
+  /* mkptypes.c */
+! Word *word_alloc P_((char *s));
+! void word_free P_((Word *w));
+! int List_len P_((Word *w));
+! Word *word_append P_((Word *w1, Word *w2));
+! int foundin P_((Word *w1, Word *w2));
+! void addword P_((Word *w, char *s));
+! void typefixhack P_((Word *w));
+! int ngetc P_((FILE *f));
+! int fnextch P_((FILE *f));
+! int nextch P_((FILE *f));
+! int getsym P_((char *buf, FILE *f));
+! int skipit P_((char *buf, FILE *f));
+! int is_type_word P_((char *s));
+! Word *typelist P_((Word *p));
+! Word *getparamlist P_((FILE *f));
+! void emit P_((Word *wlist, Word *plist, long startline));
+! void getdecl P_((FILE *f));
+! void main P_((int argc, char **argv));
+! void Usage P_((void));
+! void Version P_((void));
+  
+! #undef P_
+*** mkptypes/orig/mkptypes.man	Mon Jan 21 12:16:38 1991
+--- mkptypes/mkptypes.man	Sun Feb 17 00:05:40 1991
+***************
+*** 3,9 ****
+  
+  
+  SYNOPSIS
+!     mkptypes [ -e ][ -n ][ -p symbol ][ -s ][ -x ][ -z ][ -A ] [ file ... ]
+  
+  
+  DESCRIPTION
+--- 3,9 ----
+  
+  
+  SYNOPSIS
+!     mkptypes [-e][-n][-p symbol][-s][-x][-z][-A][-V][-W][ file ... ]
+  
+  
+  DESCRIPTION
+***************
+*** 22,28 ****
+      be prepended to the prototype declaration as a comment.
+  
+      The -p option controls the name of the macro used to guard prototype
+!     definitions. Normally this is "_P", but you can change it to any string you
+      like. To eliminate the guard macro entirely, use the -A option.
+  
+      The -s option causes prototypes to be generated for functions declared
+--- 22,28 ----
+      be prepended to the prototype declaration as a comment.
+  
+      The -p option controls the name of the macro used to guard prototype
+!     definitions. Normally this is "P_", but you can change it to any string you
+      like. To eliminate the guard macro entirely, use the -A option.
+  
+      The -s option causes prototypes to be generated for functions declared
+***************
+*** 42,47 ****
+--- 42,54 ----
+      The -A option causes the prototypes emitted to be only readable by ANSI
+      compilers.  Normally, the prototypes are "macro-ized" so that compilers
+      with __STDC__not defined don't see them.
++ 
++     The -V option prints the version number and patchlevel of mkptypes on
++     the standard error output.
++ 
++     The -W option supresses the default widening of types in old-style
++     declarations (e.g. char -> int); use this for C++ compilers or
++     for supposedly ANSI compilers that don't do type promotion.
+  
+      If files are specified on the command line, then a comment specifying the
+      file of origin is emitted before the prototypes constructed from that file.
+*** mkptypes/orig/patchlev.h	Sat Feb 16 01:14:02 1991
+--- mkptypes/patchlev.h	Sun Feb 17 00:00:38 1991
+***************
+*** 0 ****
+--- 1,16 ----
++ /*
++  * Patchlevel 1: Feb. 16, 1991
++  * changed "_P" in prototype header files to "P_" to avoid namespace conflicts
++  * with POSIX, ANSI, and some Unix header files
++  *
++  * added support C++ style comments (// to end of line)
++  * 
++  * new option (-W) to suppress promotion of prototypes in old style declarations
++  *
++  * miscellaneous bugfixes to improve probablility of parsing complicated
++  * declarations
++  *
++  * added "install" option to makefile (thanks to Blayne Puklich)
++  */
++ 
++ #define PATCHLEVEL 1
