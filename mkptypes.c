@@ -44,7 +44,7 @@ extern long atol();
 int dostatic = 0;		/* do static functions? */
 int donum    = 0;		/* print line numbers? */
 int define_macro   = 1;		/* define macro for prototypes? */
-int use_macro   = 1;		/* use a macro for prototypes? */
+int use_macro   = 0;		/* use a macro for prototypes? */
 char *macro_name = "P_";	/*   macro to use for prototypes */
 int no_parm_names = 0;		/* no parm names - only types */
 int print_extern = 0;		/* use "extern" before function declarations */
@@ -783,6 +783,8 @@ int argc; char **argv;
 				define_macro = 0;
 			else if (*t == 'A')
 				use_macro = 0;
+			else if (*t == 'k')
+				use_macro = 1;
 			else if (*t == 'V') {
 				exit_if_noargs = 1;
 				Version();
@@ -855,6 +857,8 @@ void Usage()
 	fputs("   -x: omit parameter names in prototypes\n", stderr);
 	fputs("   -z: omit prototype macro definition\n", stderr);
 	fputs("   -A: omit prototype macro; header files are strict ANSI\n",
+	   stderr);
+	fputs("   -k: use prototype macro; header files are K&R\n",
 	   stderr);
 	fputs("   -V: print version number\n", stderr);
 	fputs("   -W: don't promote types in old style declarations\n", stderr);
