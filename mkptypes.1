@@ -19,6 +19,8 @@ mkptypes \- make prototypes for functions
 ] [
 .B -A
 ] [
+.B -k
+] [
 .B -V
 ] [
 .B -W
@@ -65,8 +67,11 @@ option allows use of predefined prototype hiding macros that may exist
 on some systems.
 .PP
 The -A option causes the prototypes emitted to be only readable by ANSI
-compilers. Normally, the prototypes are "macro-ized" so that compilers
-with __STDC__ not defined don't see them.
+compilers. This is the default.
+.PP
+The -k option causes the prototypes are "macro-ized" so that compilers
+with __STDC__ not defined don't see them. This is the opposite of the
+strict ANSI (-A) option.
 .PP
 The -V option prints the version number and patchlevel of mkptypes on the
 standard error output.
